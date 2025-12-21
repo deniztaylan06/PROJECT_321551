@@ -146,7 +146,7 @@ All experiments are implemented in Python. The main libraries used include:
 
 The full computational environment can be recreated using the provided `requirements.txt` file:
 
-```bash
+
 pip install -r requirements.txt
 
 
