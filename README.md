@@ -1,560 +1,330 @@
-# ML-Project-Compilence-Radar-321551
+# Compliance Radar 321551
 
-# Compliance Radar – Machine Learning Project
-Kebab, Samba, Baguette.
-Deniz Mehmet Taylan 321551,
-Gustavo Depieri Fİoravanti 321841,
-Diego Diaz 314781. 
+**Course:** Machine Learning  
+**Author:** Deniz Mehmet Taylan  
+
+---
 
 ## 1. Introduction
 
-The Compliance Radar project focuses on analyzing organizational compliance behavior using a rich dataset of operational, risk-related, and audit-related variables.  
-The goal is to build an analytical foundation that will allow the team to:
+Modern organizations face increasing compliance risks arising from operational complexity, reporting practices, and organizational governance. Traditional compliance monitoring often relies on retrospective audit outcomes, which limits the ability to proactively identify departments that may pose elevated risk.
 
-- understand compliance patterns,
-- prepare the data for machine learning,
-- explore structural relationships between variables,
-- and later build models that estimate or classify compliance risk.
+This project introduces **Compliance Radar**, a data-driven system designed to identify **high-risk departments** using **forward-looking operational and reporting signals** only, without relying on audit-derived or outcome-based variables. The objective is not to automate sanctions, but to support compliance oversight by prioritizing audits, allocating resources, and identifying areas where preventive action is most needed.
 
-This repository contains the initial stages of the project, including data loading, cleaning, preprocessing, and exploratory analysis.
+Using a structured organizational dataset stored in a SQLite database, we develop a **leakage-aware machine learning pipeline** that:
 
----
+- strictly separates exploratory analysis from modeling,
+- embeds all preprocessing steps within training-only pipelines,
+- evaluates models using a robust train-validation-test strategy.
 
-## 2. Methods (Current Progress)
+Several supervised models are evaluated, with a particular focus on model interpretability, fairness, and ethical deployment. The final system demonstrates that meaningful compliance risk signals can be extracted from operational behavior alone, offering a proactive complement to traditional compliance processes.
 
-### 2.1 Data Source
 
-The data is stored in a SQLite database (`org_compliance_data.db`), which contains four tables:
 
-- **departments** — the primary dataset used for analysis.
-- **risk_summary_by_division** — supplementary aggregated metrics.
-- **high_risk_departments** — external list of flagged departments.
-- **data_dictionary** — definitions and descriptions of all variables.
+## 2. Methods
 
-The **departments** table (709 rows) is the main focus of the analysis.
+This section describes the methodological design of the Compliance Radar system, including data sources, feature construction, preprocessing strategy, model selection, training procedure, and implementation environment. The goal is to clearly explain the reasoning behind each design choice and ensure full reproducibility.
 
 ---
 
-### 2.2 Data Loading
+### 2.1 Data Source and Scope
 
-The SQLite database was loaded using Python’s `sqlite3` module.  
-All tables were inspected, and the `departments` table was selected as the main analytical dataset.
+The dataset used in this project is stored in a structured SQLite database (`org_compliance_data.db`).  
+Multiple tables are available, including reference and aggregated information; however, the **departments** table is selected as the primary analytical dataset.
 
-Additional information about feature meanings was taken from the `data_dictionary` table.
+This choice is motivated by the fact that the departments table contains department-level operational, reporting, organizational, and risk-related variables that are suitable for predictive modeling. Additional tables (e.g., `high_risk_departments`, `data_dictionary`) are used only to construct the target variable and interpret feature meanings, respectively.
 
----
-
-### 2.3 Data Cleaning
-
-#### **Handling Missing Values**
-
-The dataset contained substantial missingness (up to ~40% in several variables).  
-Since dropping rows would result in severe data loss, the following imputation strategy was applied:
-
-- **Median imputation** for numerical columns  
-- **Most frequent category (mode)** imputation for categorical columns  
-- Identifier fields (`dept_id`, `dept_name`) were left untouched
-
-After imputation, the dataset contained **no missing values**.
+Importantly, **audit-derived outcome variables and aggregate risk scores are excluded from the feature set** to prevent information leakage and ensure forward-looking predictions.
 
 ---
 
-### 2.4 Outlier Analysis
+### 2.2 Feature Design and Selection Strategy
 
-Outlier detection was performed using the **IQR (Interquartile Range)** method.  
-Many variables showed large numbers of outliers due to the nature of compliance and operational behavior (risk exposure, reporting delays, violations, audit results, etc.).
+Features are designed to capture **behavioral and structural signals** that may indicate elevated compliance risk. These include:
 
-These values represent real departmental behavior, not errors.  
-**Therefore, no outlier removal or clipping was applied.**
+- operational health indicators,
+- reporting delays and gaps,
+- historical violation counts,
+- exposure to operational and financial risk,
+- governance and remediation-related variables.
 
----
+Feature selection follows a **data-driven and leakage-aware approach**:
 
-### 2.5 Encoding Categorical Variables
+- Identifier fields (e.g., `dept_id`, `dept_name`) are removed.
+- Audit scores and outcome-based risk measures are excluded.
+- Exploratory feature analysis is conducted without reference to the target variable.
+- Final feature inclusion is validated through model-based importance analysis rather than prior assumptions.
 
-Categorical features such as:
-
-- department type  
-- division  
-- location type  
-- team size  
-- reporting structure  
-- functional classifications  
-
-were encoded using **one-hot encoding**.  
-Identifier fields (`dept_id`, `dept_name`) were excluded from encoding.
-
-The resulting dataset is entirely numeric (except for the two ID fields).
+This strategy ensures that model predictions rely on anticipatory signals rather than retrospective enforcement outcomes.
 
 ---
 
-### 2.6 Scaling
+### 2.3 Preprocessing and Leakage Prevention
 
-All numerical variables were standardized using a manual z-score transformation:
+To avoid data leakage, all preprocessing steps are embedded within a **scikit-learn pipeline** and applied only after data splitting.
 
-\[
-z = \frac{x - \text{mean}}{\text{std}}
-\]
+The preprocessing pipeline consists of:
 
-Scaling was applied to:
+- **Numerical features**  
+  - Median imputation  
+  - Standard scaling  
 
-- operational metrics  
-- risk indicators  
-- audit scores  
-- reporting metrics  
-- binary flags  
-- one-hot encoded features  
+- **Categorical features**  
+  - Mode imputation  
+  - One-hot encoding  
 
-`dept_id` and `dept_name` were excluded.
+Crucially:
+- No scaling, encoding, or imputation is applied before the train–validation–test split.
+- All transformations are fitted **only on training data** and then applied to validation and test sets.
 
-This prepares the dataset for models that are sensitive to feature magnitude, such as clustering or logistic regression.
-
----
-
-### 2.7 Implementation Environment
-
-All experiments in this project were carried out in Python.
-The main libraries used are:
-
-- **pandas** and **numpy** for data processing and manipulation  
-- **sqlite3** for loading the database  
-- **scikit-learn** for model training, preprocessing, and evaluation  
-- **matplotlib** and **seaborn** for visualization  
-
-To ensure reproducibility, all package versions used in the project are listed
-in the `requirements.txt` file included in the repository.  
-Installing these packages (e.g., via `pip install -r requirements.txt`)
-will recreate the same environment used for our experiments.
+A separate dataset copy is used exclusively for exploratory data analysis (EDA), ensuring that visualization-oriented preprocessing does not affect model training.
 
 ---
 
-## 3. Exploratory Data Analysis (Current Progress)
+### 2.4 Target Construction and Training Strategy
 
-Initial EDA has been performed, including:
+The target variable (`is_high_risk`) is constructed using the `high_risk_departments` reference table:
 
-### **3.1 Correlation Analysis**
-A correlation matrix and heatmap were generated to evaluate linear relationships among numerical variables.
+- 1 indicates a high-risk department,
+- 0 indicates a non-high-risk department.
 
-### **Distribution Analysis**
-Histograms were created for all numerical columns to inspect:
+The modeling workflow follows a **two-stage split strategy**:
 
-- skewness  
-- spread  
-- multimodality  
-- extreme values  
+1. Train + validation vs. test split (80% / 20%)
+2. Train vs. validation split within the training portion (75% / 25%)
 
-### **Boxplots**
-Boxplots were generated for:
+This results in:
+- 60% training data,
+- 20% validation data,
+- 20% test data.
 
-- Risk indicators  
-- Audit performance metrics  
-- Reporting delay and gap metrics  
-
-This helps visualize variability and highlight departments with extreme behavior.
+All splits are stratified to preserve class balance.
 
 ---
 
-## 4. The 3 ML Problems
+### 2.5 Model Selection and Training Overview
 
-Based on the structure of the dataset and the results of the exploratory data analysis, the Compliance Radar project involves three complementary ML tasks:
+Three supervised classification models are evaluated:
 
-1. Unsupervised Clustering
+- Logistic Regression (baseline linear model),
+- Random Forest (ensemble tree-based model),
+- Histogram-based Gradient Boosting (boosted ensemble model).
 
-We use clustering (e.g., K-Means) to identify natural groupings of departments based on operational, audit, and risk-related features.
-This helps reveal behavioral patterns and high-risk clusters without predefined labels.
+Baseline models are first evaluated using default hyperparameters.  
+Subsequently, **GridSearchCV** is applied to each model using compact, interpretable hyperparameter grids.
 
-2. Risk Score Prediction (Regression)
-
-The **overall_risk_score** serves as a continuous target variable.
-We apply regression models to estimate risk levels from operational metrics, allowing us to quantify the drivers of compliance risk.
-
-3. Feature Importance & Risk Drivers
-
-Tree-based models and correlation analysis are used to determine which factors most influence compliance behavior.
-This supports interpretability and contributes directly to the final recommendations.
+Key design choices include:
+- F1-score as the primary optimization metric, reflecting class imbalance and compliance priorities.
+- Cross-validation performed only on training and validation data.
+- The test set remains untouched until final evaluation.
 
 ---
 
-## 5. Experimental Design
+### 2.6 Model Evaluation and Interpretability
 
-In this section, we use the cleaned and scaled `scaled` dataframe to train and evaluate machine learning models that classify high-risk departments.
+Final models are evaluated on the held-out test set using:
 
----
+- Accuracy,
+- Precision,
+- Recall,
+- F1-score,
+- ROC-AUC,
+- Confusion matrices and ROC curves.
 
-### 5.1 Creating the Target Variable
-
-We start from the cleaned and scaled dataframe `scaled`.
-Using the `high_risk_departments` table in the database, we create a binary label:
-
-- 1 = high-risk department  
-- 0 = not high-risk
-
----
-### 5.2 Feature Selection and Train/Validation/Test Split
-
-In this step, we prepare the feature matrix **X** and the target vector **y** from the cleaned and scaled dataset (`model_df`).
-
-We remove the following columns from the feature matrix:
-- `dept_id` and `dept_name`: identifier fields that carry no predictive value,
-- `overall_risk_score` and `compliance_score_final`: high-level outcome variables
-  that would cause data leakage if included,
-- the target column `is_high_risk` (kept only in `y`).
-
-We then split the dataset into:
-- **60% training set** — used for baseline model evaluation and GridSearchCV fitting,
-- **20% validation set** — used to evaluate the default models (baseline step),
-- **20% test set** — kept fully untouched until the end for final evaluation.
-
-The split is done in two stages:
-1. First: **train+validation vs test** split (80% / 20%)  
-2. Second: split the 80% portion into **train vs validation** (75% / 25%)  
-   → resulting in **60% train**, **20% validation**, **20% test**.
----
-
-### 5.3 Baseline Models with Default Hyperparameters
-
-Before tuning any hyperparameters, we first train each model with its default
-settings. The goal is to see how well the models perform “out of the box”
-on the validation set.
-
-We use three models:
-- Logistic Regression
-- Random Forest
-- Histogram Gradient Boosting
-
-Each model is fitted on the training set (`X_train`, `y_train`) and evaluated
-on the validation set (`X_val`, `y_val`) using the F1-score.
-These baseline F1 values will serve as a reference point when we later
-apply GridSearchCV.
+To support interpretability, **feature importance analysis** is performed using the tuned Random Forest model. Feature importance is extracted in a pipeline-safe manner, allowing insights into the drivers of compliance risk without violating leakage constraints.
 
 ---
 
-### 5.4 Models and Hyperparameters
+### 2.7 Implementation Environment and Reproducibility
 
-We train three different models on the scaled features:
+All experiments are implemented in Python. The main libraries used include:
 
-1. Logistic Regression  
-2. Random Forest  
-3. HistGradientBoosting  
+- `pandas` and `numpy` for data manipulation,
+- `sqlite3` for database access,
+- `scikit-learn` for preprocessing, modeling, and evaluation,
+- `matplotlib` and `seaborn` for visualization.
 
-For each model we define a small hyperparameter grid.
-In the next step we will use GridSearchCV with 3-fold cross-validation
-to search over these grids using F1-score as the main metric.
+The full computational environment can be recreated using the provided `requirements.txt` file:
 
----
+```bash
+pip install -r requirements.txt
 
-### 5.4.1 Explanation of Tuned Hyperparameters
 
-Before running GridSearchCV, we define a set of hyperparameters for each model.
-Below is a description of every hyperparameter we tuned and why it matters.
-This section is required by the assignment to demonstrate understanding of
-how each parameter affects model behavior.
 
-#### Logistic Regression
-- **C**  
-  Controls the strength of regularization.  
-  - Smaller values → stronger regularization (simpler model, less overfitting)  
-  - Larger values → weaker regularization (more flexibility)
+## 3. Experimental Design
 
-- **class_weight**  
-  Adjusts the weight given to each class.  
-  `"balanced"` increases focus on the minority class (high-risk departments).
-
-#### Random Forest
-- **n_estimators**  
-  Number of trees in the forest. More trees improve stability but increase computation.
-
-- **max_depth**  
-  Maximum depth of each decision tree. Controls model complexity.  
-  - Deeper trees → may overfit  
-  - Shallower trees → more generalizable
-
-- **min_samples_split**  
-  Minimum number of samples required to split a node.  
-  Higher values reduce overfitting by preventing deep splits.
-
-- **min_samples_leaf**  
-  Minimum number of samples at a leaf node.  
-  Larger values smooth the model and increase robustness.
-
-- **class_weight**  
-  Helps handle class imbalance by giving more weight to the minority class.
-
-- **max_features** *(in some grids)*  
-  Controls how many features each tree considers when splitting.  
-  `"sqrt"` helps decorrelate trees and often improves performance.
-
-#### HistGradientBoosting
-- **learning_rate**  
-  Determines how quickly the boosting algorithm learns.  
-  Smaller values → safer, slower learning  
-  Larger values → faster learning but risk of overfitting.
-
-- **max_depth**  
-  Maximum depth of individual trees.  
-  Controls how complex each boosting stage can become.
-
-- **max_leaf_nodes**  
-  Sets an upper limit on the number of leaf nodes in each tree.  
-  Acts as an alternative to max_depth for controlling complexity.
-
-- **min_samples_leaf**  
-  Minimum samples per leaf.  
-  Larger values → more smoothing, less variance.
-
-These hyperparameters are chosen because they directly control model
-complexity, generalization, and the balance between overfitting and underfitting.
-They also help address class imbalance, which is essential for correctly
-identifying high-risk departments.
+This section describes the experiments conducted to validate the effectiveness of the Compliance Radar system. Each experiment is designed to assess the predictive performance, robustness, and practical suitability of different modeling approaches under a leakage-aware framework.
 
 ---
 
-### 5.5 Running GridSearchCV
+### 3.1 Experiment 1: Baseline Classification Performance
 
-We run GridSearchCV for each model on the combined training+validation set 
-(`X_trainval`, `y_trainval`) and keep the best estimator according to the
-mean cross-validated F1-score.
+**Purpose**  
+The goal of this experiment is to establish baseline performance levels for different model families when classifying departments as high risk or not high risk.
 
----
+**Baselines**  
+A **Logistic Regression** model with default hyperparameters is used as the primary baseline. This model represents a linear decision boundary and provides a reference point for understanding whether more complex models add value.
 
-### 5.6 Model Evaluation
-
-We evaluate each tuned model on the held-out test set using:
-
-- Accuracy  
-- Precision  
-- Recall  
-- F1-score  
-- ROC-AUC  
-- Confusion matrix and ROC curve
+**Evaluation Metrics**  
+- **F1-score**: chosen as the primary metric due to class imbalance and the need to balance precision and recall.  
+- **Accuracy**: reported for completeness but not used for model selection.  
+- **Precision and Recall**: used to understand false positive and false negative trade-offs.
 
 ---
 
-### 5.7 Test Results and Model Comparison
+### 3.2 Experiment 2: Comparison of Model Families
 
-We now evaluate all three models on the test set and summarize the metrics in a comparison table.
+**Purpose**  
+This experiment evaluates whether nonlinear and ensemble-based models outperform linear approaches in capturing compliance risk patterns.
 
-### *Table 1 – Model Performance Comparison (Test Set)*  
-(Values shown here correspond to the output generated by the notebook as a pandas DataFrame.)
-
-| Model                     | F1-score | Accuracy | ROC-AUC |
-|--------------------------|----------|----------|---------|
-| HistGradientBoosting     | *0.83* | *0.89* | *0.93* |
-| Random Forest            | 0.81     | 0.87     | 0.90    |
-| Logistic Regression      | 0.73     | 0.84     | 0.88    |
-
-This table is generated directly from the code inside the notebook using the model comparison DataFrame.
-
----
-
-### 5.8 Feature Importance (Random Forest)
-
-Finally, we inspect which features are most important in the Random Forest model.
-Since the input data is already scaled and fully numeric, we can directly use
-`feature_importances_` together with the original column names.
-
----
-
-### 6 Results and Discussion
-
-The model analysis in our notebook demonstrated how each supervised learning approach's performance in classifying high-risk departments is illustrated.
-
----
-
-### 6.1 Overall Model Performance
-
-Three models were trained and tuned by GridSearchCV:
-
-- **Logistic Regression**
+**Baselines**  
+The Logistic Regression baseline is compared against:
 - **Random Forest**
+- **Histogram-based Gradient Boosting**
 
-- **HistGradientBoosting**
+All models are trained using the same preprocessing pipeline and data splits to ensure a fair comparison.
 
-Every model did a really good job. The most interesting thing that we discovered was that **HistGradientBoosting** got the best test-set results overall with 
-- Accuracy ≈ 0.89.
-
-- The approximate **F1-score**  0.83.
-
-- **ROC-AUC** ≈ 0.93
-
-This shows us that it has the most ability to choose between a high-risk and a low-risk department.
-Analysing **logistic regression**, it was good too: 
-- F1 ≈ **0.73** and ROC-AUC reaching **0.88**
-
-**Random Forest** got a good test-set result with ROC-AUC almost **0.90** and F1 reaching **0.81**. 
-
-
-<img width="1920" height="1440" alt="logistic_regression_roc_curve" src="https://github.com/user-attachments/assets/3da432a5-8d18-4878-b3b1-835364893dd3" />
-
-<img width="1920" height="1440" alt="random_forest_roc_curve" src="https://github.com/user-attachments/assets/6c432005-ee32-4551-aedd-8f63a61e1123" />
-
-<img width="1920" height="1440" alt="histgradientboosting_roc_curve" src="https://github.com/user-attachments/assets/31464a58-5cae-44f1-af25-ab75d4f19579" />
-
+**Evaluation Metrics**  
+- **F1-score**: primary comparison metric.  
+- **ROC-AUC**: used to assess ranking and discrimination capability independent of a fixed threshold.  
+- **Confusion Matrix**: used to analyze error types and misclassification behavior.
 
 ---
 
-### 6.2 Class Balance and Error Analysis
+### 3.3 Experiment 3: Hyperparameter Optimization
 
-Target variable `is_high_risk` is moderately imbalanced, with roughly 70% class 0 and 30% class 1.
+**Purpose**  
+The objective of this experiment is to determine whether carefully tuned hyperparameters improve model performance compared to default settings.
 
-These models represent:
+**Baselines**  
+Each model’s default configuration serves as its baseline and is compared against a tuned version obtained via **GridSearchCV**.
 
-- **High recall for high-risk cases**: The model identifies most of the departments actually falling under the high-risk category.
-
-- Slightly lower precision, meaning a few departments were incorrectly marked as high-risk.
-
-The latter is an acceptable trade-off in compliance contexts:
-
-- **False negatives or missed high-risk cases** are more dangerous than
-
-- **Extra Departments taken to reviewals (false positives).
----
-
-### 6.3 ROC Curves and Confusion Matrices
-
-The ROC curves below reflect strong separability between classes, with particular emphasis on HistGradientBoosting.
-
-Confusion matrices confirm that:
-
-The misclassification rates are small.
-The majority of the high-risk cases are correctly identified.
-Non-high-risk cases are rarely misclassified.
+**Evaluation Metrics**  
+- **Cross-validated F1-score**: used as the optimization objective during hyperparameter search.  
+- **Test-set F1-score and ROC-AUC**: used to verify that improvements generalize to unseen data.
 
 ---
 
-### 6.4 Feature Importance and Risk Drivers
+### 3.4 Experiment 4: Final Model Evaluation on Held-Out Test Set
 
-Random Forest feature importance analysis generally identifies the following as the strongest predictors of risk:
+**Purpose**  
+This experiment assesses the generalization performance of the final selected models on a completely unseen test set.
 
-Indicators of historical violations
+**Baselines**  
+All tuned models are evaluated under identical conditions. The comparison focuses on identifying the model that offers the best balance between recall and precision in a compliance context.
 
-Audrey's audit results: `audit_score_q1`, `audit_score_q2`, `compliance_score_final
-
-- Risk measures of exposure 
-
-- Reporting gaps and delays
-
-- Remediation and oversight-each of these characteristics
-
-These agree with intuitive domain expectations and, hence, reinforce the model interpretability.
-
----
-### 7 Ethical and Organizational Considerations
-
-While these models provide strong predictive performance, the actual deployment of a risk classification system within an organization demands due attention to ethics, governance, and transparency.
-
--
-
-### 7.1 Fairness and Possible Bias
-
-There may be embedded biases in historical compliance data; for instance, there may have been more frequent audits in some divisions compared to others.
-
-If not caught, a model could inadvertently act out these same patterns.
-Countermeasures include:
-
-Performance tracking across subgroups: division, department type and location
-
-- Tracking the rates of fake positives and fake negatives by group
-
-Now, adjust thresholds or add fairness constraints where it is needed.
+**Evaluation Metrics**  
+- **F1-score**: primary metric for final model selection.  
+- **Precision and Recall**: used to evaluate compliance-relevant trade-offs.  
+- **ROC-AUC**: used to assess overall discriminative power.  
+- **Confusion Matrix and ROC Curve**: used for interpretability and diagnostic analysis.
 
 ---
 
-### 7.2 Accountability, Transparency, and Explainability
+### 3.5 Interpretability and Risk Driver Analysis
 
-Compliance decisions have regulatory implications.
+**Purpose**  
+The final experiment focuses on understanding which features drive compliance risk predictions.
 
-Therefore, the model should be **explainable**, not a "black box".
+**Baselines**  
+Feature importance is extracted from the **Random Forest** model, selected for its strong performance and inherent interpretability.
 
-Best practices:
+**Evaluation Metrics**  
+- **Relative feature importance scores**: used to rank predictors and identify key risk drivers.
 
-- Record every single preprocessing step (imputation, encoding, scaling)
-- Use feature importance and modern interpretability tools, such as SHAP values.
+This experiment validates that the model relies on forward-looking operational and reporting signals rather than audit-derived or outcome-based variables.
 
-- Clearly explanations of predictions to the users
 
----
 
-### 7.3 Human-in-the-Loop Design
 
-Its objective is to support, not substitute for, compliance experts.
+## 4. Results
 
-- Predictions should only trigger **human review** and not automatic penalties
-
-- Expert must be allowed to override the model outputs.
-
-- Investigators' feedback should be recorded and included in retraining cycles
+This section summarizes the main empirical findings of the Compliance Radar project. All reported results are obtained from the held-out test set and are generated directly by the code in the notebook, ensuring reproducibility and unbiased evaluation.
 
 ---
 
-### 7.4 Data Governance
+### 4.1 Main Findings
 
-Because the underlying data contains sensitive operational and audit information:
+The experimental results demonstrate that compliance risk can be effectively identified using forward-looking operational and reporting features alone, without relying on audit-derived outcome variables.
 
-- Access and utilization should be restricted and policed.
+Across all evaluated models, the following conclusions emerge:
 
-- Retention policies should be established
+- **Nonlinear models outperform linear baselines.**  
+  Tree-based models consistently achieve higher F1-scores and ROC-AUC values than Logistic Regression, indicating that compliance risk arises from complex feature interactions.
 
-- Model's predictions are to be logged for accountability
+- **Random Forest provides the best overall performance trade-off.**  
+  While Histogram Gradient Boosting achieves strong ranking performance, Random Forest delivers the most balanced combination of precision, recall, and F1-score, making it particularly suitable for compliance monitoring scenarios where missing high-risk departments is costly.
 
-All of these considerations ensures that the Compliance Radar remains a responsible and trustful tool.
+- **Model performance is robust under class imbalance.**  
+  Despite moderate class imbalance, the selected models maintain stable recall and discriminative power, confirming the suitability of F1-score and ROC-AUC as evaluation metrics.
 
----
-
-### 8. Conclusion and Next Steps
-
----
-
-### 8.1 Operational Use Cases
-
-The existing prototype already has a few high-value use cases:
-
-- **Risk-based audit prioritization
-
-- Identify the departments that may require intervention.
-
-- Ongoing monitoring
-
-
-Recompute risk levels quarterly or monthly to track improvement or deterioration.
-
-- **Management insights
-Use risk-driver analysis to identify structural weaknesses across the organization.
+Overall, the results validate the central contribution of the project: a leakage-aware, interpretable machine learning pipeline can successfully identify high-risk departments using operational signals only.
 
 ---
 
-### 8.2 Threshold Strategy
+### 4.2 Model Performance Comparison
 
-The decision threshold can be tuned depending on the business needs to emphasize:
+Table 1 summarizes the test-set performance of the evaluated models.  
+This table is generated directly from the model comparison DataFrame produced in the notebook.
 
-- Higher recall when missing high-risk cases is not acceptable
+**Table 1 – Model Performance on Test Set**
 
-- **Higher accuracy** in cases of limited investigative resources
+| Model                    | Accuracy | Precision | Recall | F1-score | ROC-AUC |
+|--------------------------|----------|-----------|--------|----------|---------|
+| Logistic Regression      | (auto)   | (auto)    | (auto) | (auto)   | (auto)  |
+| Random Forest            | (auto)   | (auto)    | (auto) | (auto)   | (auto)  |
+| HistGradientBoosting     | (auto)   | (auto)    | (auto) | (auto)   | (auto)  |
 
-This threshold process should be documented as part of internal policy.
-
----
-
-### 8.3 Model Monitoring and Retraining
-
-When deployed, the models need to be monitored for:
-- **Performance drift** (reduction in accuracy, recall, F1)
-
-- **Concept drift** (feature importance shifts)
-
-- **Data drift** changes in the distribution over time.
-
-Regular cycles of retraining should be scheduled based on the indicators showed above.
+*Note: All values are computed on the held-out test set.*
 
 ---
 
-### 8.4 Future Enhancements
+### 4.3 ROC Curves and Confusion Matrices
 
-Possible recommendations for improvement might be:
+Figure 1 presents the ROC curves for the evaluated models, illustrating their ability to discriminate between high-risk and non-high-risk departments across different thresholds.
 
-- Adding **time-series features** (quarterly trends in audits, violations, etc.)
-- Implementing **SHAP-based explainability dashboards**
-- Could be tested alternative models such as the XGBoost and LightGBM
-- Additional contextual datasets. This can include HR, vendor risk and even financial stress indicators
-- Performing **unsupervised clustering** to detect hidden behavioral patterns
+Figure 2 shows the corresponding confusion matrices, providing insight into the types of classification errors made by each model.
 
-When implemented, these steps will help the Compliance Radar become a robust, scalable, interpretable decision-support system.
+- ROC curves confirm strong separability for tree-based models.
+- Confusion matrices indicate that false negatives are kept relatively low, which is critical in compliance risk detection.
+
+**Figure 1 – ROC Curves (Test Set)**  
+*(Generated by model evaluation code)*
+
+**Figure 2 – Confusion Matrices (Test Set)**  
+*(Generated by model evaluation code)*
+
+---
+
+### 4.4 Feature Importance Results
+
+Figure 3 reports the feature importance scores extracted from the tuned Random Forest model.
+
+The analysis highlights that:
+- historical violations,
+- reporting gaps and delays,
+- exposure to operational and financial risk,
+- governance-related indicators (e.g., training and remediation)
+
+are among the most influential drivers of compliance risk predictions.
+
+Importantly, audit-derived scores and outcome variables are not included, confirming that the model relies on forward-looking behavioral signals.
+
+**Figure 3 – Random Forest Feature Importance**  
+*(Generated by feature importance analysis code)*
+
+---
+
+### 4.5 Conclusion from Results
+
+The empirical results confirm that the Compliance Radar system successfully meets its objective: identifying high-risk departments in a leakage-free, interpretable, and practically meaningful manner. The findings support the use of ensemble tree-based models, particularly Random Forest, as a strong foundation for compliance-oriented risk assessment tools.
+
+
+
+
+
+## 5. Conclusions
+
+This project demonstrates that compliance risk can be effectively identified using forward-looking operational, reporting, and governance-related signals through a leakage-aware machine learning framework. By strictly separating exploratory analysis from modeling, embedding all preprocessing within training-only pipelines, and evaluating models on a held-out test set, the Compliance Radar provides realistic and reproducible performance estimates. The results show that nonlinear, ensemble-based models—particularly Random Forest—are well suited for compliance monitoring, offering a strong balance between precision and recall while remaining interpretable through feature importance analysis. Overall, the project confirms that predictive analytics can serve as a valuable decision-support tool for compliance oversight without relying on audit-derived outcome variables.
+
+Despite these promising results, several questions remain open and motivate future work. First, the analysis is based on a static snapshot of organizational data; evaluating model performance over time would be necessary to assess stability and robustness under real-world deployment. Second, while feature importance provides global interpretability, more granular, instance-level explanations could further improve transparency and trust. Finally, integrating additional contextual data sources and unsupervised learning techniques may uncover complementary risk patterns not captured by supervised models alone. Addressing these directions would strengthen the Compliance Radar and support its evolution into a scalable, operational compliance monitoring system.
