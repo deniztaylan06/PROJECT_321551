@@ -258,6 +258,7 @@ To reflect compliance cost asymmetry, we optimize the classification threshold b
 - The optimal threshold is selected on the validation set.  
 - The chosen threshold is applied to the test set.
 
+We approximate expected cost by computing realized cost on the validation set for each threshold.
 ---
 
 ### 3.7 Temporal Validation (Proxy)
